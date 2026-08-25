@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "koda-vault"
+version = "0.1.0"
+description = "AES-256-GCM encrypted credential vault with Argon2 key derivation, scoped access, and audit logging"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Mike Wandzilak", email = "mike@wandzilakwebdesign.com"}]
+dependencies = [
+    "cryptography>=42.0",
+    "argon2-cffi>=23.1",
+    "pydantic>=2.0",
+    "fastapi>=0.110"
+]
+
+[project.urls]
+Homepage = "https://github.com/HeyKodaAI/koda-vault"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
