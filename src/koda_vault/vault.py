@@ -19,8 +19,9 @@ Security guarantees:
 from __future__ import annotations
 
 import uuid
+import json
 
-from koda_vault.exceptions import CredentialNotFoundError, PermissionDeniedError
+from koda_vault.exceptions import CredentialNotFoundError, PermissionDeniedError, DecryptionError
 from koda_vault.audit import AuditLogger
 from koda_vault.encryption import AESGCMEncryptor, EncryptedPayload
 from koda_vault.storage import VaultStorage
@@ -73,7 +74,7 @@ class CredentialVault:
         cred_id = str(uuid.uuid4())
 
         # Encrypt the value — AAD binds ciphertext to this specific credential
-        aad = f"{name}:{service}".encode("utf-8")
+        aad = self._identity_aad(name, service)
         payload = self._encryptor.encrypt(
             plaintext=value.encode("utf-8"),
             key=self._key,
@@ -88,6 +89,7 @@ class CredentialVault:
             scopes=scopes,
             iv=payload.iv,
             ciphertext=payload.ciphertext,
+            aad_version=2,
         )
 
         self._audit.log(
@@ -153,10 +155,31 @@ class CredentialVault:
                 f"Credential '{name}' lacks required scope: {required_scope}"
             )
 
-        # Decrypt
-        aad = f"{name}:{service}".encode("utf-8")
-        payload = EncryptedPayload(iv=record["iv"], ciphertext=record["ciphertext"])
-        plaintext = self._encryptor.decrypt(payload, self._key, associated_data=aad)
+        # No v1 fallback after a v2 authentication failure.
+        try:
+            version = record["aad_version"]
+            if version == 1:
+                if ":" in name or ":" in service:
+                    raise DecryptionError(
+                        "Ambiguous legacy credential identity; restore from a trusted source"
+                    )
+                aad = f"{name}:{service}".encode("utf-8")
+            elif version == 2:
+                aad = self._identity_aad(name, service)
+            else:
+                raise DecryptionError("Unsupported credential identity version")
+            payload = EncryptedPayload(iv=record["iv"], ciphertext=record["ciphertext"])
+            plaintext = self._encryptor.decrypt(payload, self._key, associated_data=aad)
+            if version == 1:
+                upgraded = self._encryptor.encrypt(plaintext, self._key, self._identity_aad(name, service))
+                self._storage.upgrade_credential(record["id"], upgraded.iv, upgraded.ciphertext)
+        except DecryptionError:
+            self._audit.log(
+                action="retrieve", credential_name=name, credential_service=service,
+                accessed_by=requested_by, success=False,
+                error_message="Credential integrity or decryption verification failed",
+            )
+            raise
 
         # Update access tracking
         self._storage.update_last_accessed(record["id"], requested_by)
@@ -170,6 +193,11 @@ class CredentialVault:
         )
 
         return plaintext.decode("utf-8")
+
+    @staticmethod
+    def _identity_aad(name: str, service: str) -> bytes:
+        return json.dumps(["koda-vault", 2, name, service],
+                          ensure_ascii=True, separators=(",", ":")).encode("utf-8")
 
     def list(self) -> list[dict]:
         """List all credentials (metadata only, no values or scopes).

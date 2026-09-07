@@ -78,6 +78,19 @@ class VaultStorage:
                     ON credentials(service);
             """)
 
+        with self._get_connection() as conn:
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(credentials)")}
+            if "aad_version" not in columns:
+                conn.execute("ALTER TABLE credentials ADD COLUMN aad_version INTEGER NOT NULL DEFAULT 1")
+
+    def upgrade_credential(self, credential_id: str, iv: bytes, ciphertext: bytes) -> None:
+        """Atomically replace a successfully decrypted legacy payload with v2."""
+        with self._get_connection() as conn:
+            conn.execute(
+                "UPDATE credentials SET iv = ?, ciphertext = ?, aad_version = 2 "
+                "WHERE id = ? AND aad_version = 1", (iv, ciphertext, credential_id),
+            )
+
     def insert_credential(
         self,
         *,
@@ -87,6 +100,7 @@ class VaultStorage:
         scopes: list[str],
         iv: bytes,
         ciphertext: bytes,
+        aad_version: int = 1,
     ) -> None:
         """Insert a new encrypted credential.
 
@@ -104,8 +118,8 @@ class VaultStorage:
         try:
             with self._get_connection() as conn:
                 conn.execute(
-                    """INSERT INTO credentials (id, name, service, scopes, iv, ciphertext, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    """INSERT INTO credentials (id, name, service, scopes, iv, ciphertext, created_at, aad_version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         id,
                         name,
@@ -114,6 +128,7 @@ class VaultStorage:
                         iv,
                         ciphertext,
                         _utc_now_iso(),
+                        aad_version,
                     ),
                 )
         except sqlite3.IntegrityError as e:
@@ -134,7 +149,7 @@ class VaultStorage:
             with self._get_connection() as conn:
                 row = conn.execute(
                     """SELECT id, name, service, scopes, iv, ciphertext,
-                              created_at, last_accessed, last_accessed_by
+                              created_at, last_accessed, last_accessed_by, aad_version
                     FROM credentials WHERE name = ? AND service = ?""",
                     (name, service),
                 ).fetchone()

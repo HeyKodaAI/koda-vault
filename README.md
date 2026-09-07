@@ -11,12 +11,16 @@ This package is the vault alone — a small, dependency-light library you can dr
 ## Features
 
 - **AES-256-GCM authenticated encryption** — 32-byte key, fresh random 96-bit IV per encryption, 128-bit auth tag. Tampered ciphertext fails to decrypt.
-- **AAD binding** — ciphertext is bound to its `name:service` identity as associated data, so an encrypted blob cannot be swapped between credentials.
+- **AAD binding** — ciphertext is bound to a versioned JSON tuple containing its name and service as associated data, so an encrypted blob cannot be swapped between credentials.
 - **Argon2id key derivation** — master key derived from a passphrase with OWASP-recommended parameters (64 MB memory, 3 iterations, parallelism 4). Separate `hash_passphrase` / `verify_passphrase` helpers for login-style authentication.
 - **Scope enforcement** — credentials declare scopes (e.g. `gmail:read`, `gmail:send`); a retrieval that declares a `required_scope` the credential lacks raises `PermissionDeniedError`.
 - **Audit logging** — every store/retrieve/list/delete (success and failure) is recorded to a SQLite audit table plus the application logger, with the requesting component's name. Values are never logged.
 - **Metadata-only listings** — `list()` and the Pydantic response models (`CredentialMeta`, `CredentialListItem`) intentionally have no value field.
 - **SQLite storage** — WAL mode, schema auto-creates, `UNIQUE(name, service)`, thread-safe connection-per-operation. Designed to be swappable for PostgreSQL.
+
+## Review fixes (0.1.1)
+
+See [CHANGELOG.md](CHANGELOG.md) for fixes, compatibility changes and upgrade guidance.
 
 ## Install
 
@@ -53,7 +57,7 @@ vault.store(
     value="ya29.example-oauth-token",
 )
 
-# 4. Retrieve it — caller identity and required scope are enforced and audited.
+# 4. Retrieve it — the requested scope is checked and the caller label is audited.
 token = vault.retrieve(
     name="work-gmail",
     service="gmail",
@@ -106,7 +110,7 @@ pip install -e . pytest pytest-asyncio
 pytest
 ```
 
-50 tests, including a dedicated no-credential-leakage suite (`tests/test_no_credential_leakage.py`).
+57 tests, including a dedicated no-credential-leakage suite (`tests/test_no_credential_leakage.py`).
 
 ## License
 
