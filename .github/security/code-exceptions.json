@@ -1,0 +1,23 @@
+[
+  {
+    "rule": "generic.secrets.security.detected-google-oauth-access-token.detected-google-oauth-access-token",
+    "file": "README.md",
+    "line": 53,
+    "sha256": "92632d6edceb8fc82d62f5a57acf627cce246c3dcac72d693e47071a03167f99",
+    "reason": "Reviewed documentation example with a literal placeholder OAuth value; not an issued credential."
+  },
+  {
+    "rule": "generic.secrets.security.detected-google-oauth-access-token.detected-google-oauth-access-token",
+    "file": "README.md",
+    "line": 73,
+    "sha256": "92632d6edceb8fc82d62f5a57acf627cce246c3dcac72d693e47071a03167f99",
+    "reason": "Reviewed documentation example with a literal placeholder OAuth value; not an issued credential."
+  },
+  {
+    "rule": "generic.secrets.security.detected-google-oauth-access-token.detected-google-oauth-access-token",
+    "file": "src/koda_vault/models.py",
+    "line": 103,
+    "sha256": "e8c5ee0ecab270067d550e51dc3fd9f55a72f3012faf019f0c08d0dcbaa4d4ba",
+    "reason": "Reviewed documentation example with a literal placeholder OAuth value; not an issued credential."
+  }
+]
